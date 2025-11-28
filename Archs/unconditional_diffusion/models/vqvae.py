@@ -106,3 +106,15 @@ class VQVAE(nn.Module):
         out, quant_losses, _ = self.quantize(out)
         return out, quant_losses
 
+    def decode(self,z):
+        out = z
+        out = self.post_quant_conv(out)
+        out = self.decoder_conv_in(out)
+        for mid in self.decoder_mids:
+            out = mid(out)
+        for idx, up in enumerate(self.decoder_layers):
+            out = up(out)
+        out = self.decoder_norm_out(out)
+        out = nn.SiLU()(out)
+        out = self.decoder_conv_out(out)
+        return out
