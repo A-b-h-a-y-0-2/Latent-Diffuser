@@ -44,4 +44,52 @@ class VQVAE(nn.Module):
 
         self.embedding = nn.Embedding(self.codebook_size, self.z_channels)
 
+        ##Decoder
+        self.post_quant_conv = nn.conv2d(self.z_channels, self.z_channels, kernel_size=1)
+
+        self.decoder_conv_in = nn.Conv2d(self.z_channels,self.mid_channels[-1],kernel_size=3,padding=(1,1))
+
+        self.decoder_mids = nn.ModuleList([])
+        for i in reversed(range(1, len(self.mid_channels))):
+            self.decoder_mids.append(MidBlock(self.mid_channels[i], self.mid_channels[i - 1],
+                                              t_emb_dim=None,
+                                              num_heads=self.num_heads,
+                                              num_layers=self.num_mid_layers,
+                                              norm_channels=self.norm_channels))
         
+        self.decoder_layers = nn.ModuleList([])
+        for i in reversed(range(1, len(self.down_channels))):
+            self.decoder_layers.append(UpBlock(self.down_channels[i], self.down_channels[i - 1],
+                                               t_emb_dim=None, up_sample=self.down_sample[i - 1],
+                                               num_heads=self.num_heads,
+                                               num_layers=self.num_up_layers,
+                                               attn=self.attns[i-1],
+                                               norm_channels=self.norm_channels))
+        
+        self.decoder_norm_out = nn.GroupNorm(self.norm_channels, self.down_channels[0])
+        self.decoder_conv_out = nn.Conv2d(self.down_channels[0], im_channels, kernel_size=3, padding=1)
+
+    def quantize(self,x):
+        B,C,H,W = x.shape
+
+        x = x.permute(0,2,3,1)
+        x = x.reshape(x.size(0), -1,x.size(-1))
+
+        distance = torch.cdist(x, self.embedding.weight[None,:].repeat((x.size(0),1,1)))
+        min_encoding_indices = torch.argmin(distance, dim = -1)
+        quant_out = torch.index_select(self.embedding.weight,0,min_encoding_indices.view(-1))
+
+        x = x.reshape((-1,x.size(-1)))
+        commitment_loss = torch.mean((quant_out.detach()-x)**2)
+        codebook_loss = torch.mean((quant_out-x.detach())**2)
+        quantized_losses = {
+            'codebook_loss': codebook_loss,
+            'commitment_loss': commitment_loss
+        }
+
+        quant_out = x + (quant_out - x).detach()
+        quant_out = quant_out.reshape((B,H,W,C)).permute(0,3,1,2)
+        min_encoding_indices = min_encoding_indices.reshape((-1,quant_out.size(-2), quant_out.size(-1)))
+
+        return quant_out, quantized_losses, min_encoding_indices
+    
