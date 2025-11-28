@@ -118,3 +118,8 @@ class VQVAE(nn.Module):
         out = nn.SiLU()(out)
         out = self.decoder_conv_out(out)
         return out
+
+    def forward(self,x):
+        z,quant_losses = self.encode(x)
+        out =self.decode(z)
+        return out, z, quant_losses
