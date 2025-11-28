@@ -60,3 +60,18 @@ class VAE(nn.Module):
                                                norm_channels=self.norm_channels))
         self.decoder_norm_out = nn.GroupNorm(self.norm_channels, self.down_channels[0])
         self.decoder_conv_out = nn.Conv2d(self.down_channels[0], im_channels, kernel_size=3, padding=1)
+
+    def encode(self, x):
+        out = self.encoder_conv_in(x)
+        for idx, down in enumerate(self.encoder_layers):
+            out = down(out)
+        for mid in self.encoder_mids:
+            out = mid(out)
+        out = self.encoder_norm_out(out)
+        out = nn.SiLU()(out)
+        out = self.encoder_conv_out(out)
+        out = self.pre_quant_conv(out)
+        mean, logvar = torch.chunk(out, 2, dim=1)
+        std = torch.exp(0.5 * logvar)
+        sample = mean + std * torch.randn(mean.shape).to(device=x.device)
+        return sample, out
