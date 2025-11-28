@@ -55,3 +55,24 @@ class Unet(nn.Module):
                                         attn=self.attns[i], norm_channels=self.norm_channels))
         self.norm_out = nn.GroupNorm(self.norm_channels, self.conv_out_channels)
         self.conv_out = nn.Conv2d(self.conv_out_channels, im_channels, kernel_size=3, padding=1)
+
+    def forward(self, x, t):
+        out = self.conv_in(x)
+        t_emb = get_time_embeddings(torch.as_tensor(t).long(), self.t_emb_dim)
+        t_emb = self.t_proj(t_emb)
+        down_outs = []
+
+        for idx, down in enumerate(self.downs):
+            down_outs.append(out)
+            out = down(out, t_emb)
+        for mid in self.mids:
+            out = mid(out, t_emb)
+        
+        for up in self.up:
+            down_out = down_outs.pop()
+            out = up(out, down_out, t_emb)
+        
+        out = self.norm_out(out)
+        out = nn.SiLU()(out)
+        out = self.conv_out(out)
+        return out
