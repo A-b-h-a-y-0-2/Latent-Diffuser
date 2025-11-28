@@ -22,6 +22,26 @@ def get_time_embeddings(time_steps, temb_dimensions):
 class DownBlock(nn.Module):
     r"""Down conv block with attention, with the following sequence:
         Resnet -> Self-Attention -> Downsample"""
+
+    """Mental Diagram:
+     x ----> resnet_conv_first[i] ----> + time_emb[i] ----> resnet_conv_second[i] ----> y
+     |                                                                                  |
+     +-------------------- residual_input_conv[i] -------------------------------------+
+                                           |
+                                         resnet_out
+
+    If attention enabled:
+    
+        resnet_out → SelfAttention(norm → MHA → residual)
+    If cross-attention enabled:
+
+        attn_out → CrossAttention(norm → proj(context) → MHA → residual)
+
+    If downsample enabled:
+
+        ↓ downsample (optional)
+
+"""
     
     def __init__(self, in_channels, out_channels, t_emb_dim, down_sample, num_heads, num_layers, attn, norm_channels, cross_attn = False,
     context_dim = None):
@@ -85,4 +105,4 @@ class DownBlock(nn.Module):
             for i in range(self.num_layers)
         ])
         self.down_sample_conv = nn.Conv2d(out_channels, out_channels,4,2,1) if self.down_sample else nn.Identity()
-            
+    
