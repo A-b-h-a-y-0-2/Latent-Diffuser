@@ -93,3 +93,16 @@ class VQVAE(nn.Module):
 
         return quant_out, quantized_losses, min_encoding_indices
     
+    def encode(self,x):
+        out = self.encoder_conv_in(x)
+        for idx, down in enumerate(self.encoder_layers):
+            out = down(out)
+        for mid in self.encoder_mids:
+            out = mid(out)
+        out = self.encoder_norm_out(out)
+        out = nn.SiLU()(out)
+        out = self.encoder_conv_out(out)
+        out = self.pre_quant_conv(out)
+        out, quant_losses, _ = self.quantize(out)
+        return out, quant_losses
+
