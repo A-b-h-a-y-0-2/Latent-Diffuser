@@ -75,3 +75,18 @@ class VAE(nn.Module):
         std = torch.exp(0.5 * logvar)
         sample = mean + std * torch.randn(mean.shape).to(device=x.device)
         return sample, out
+
+    def decode(self, z):
+        out = z
+        out = self.post_quant_conv(out)
+        out = self.decoder_conv_in(out)
+        for mid in self.decoder_mids:
+            out = mid(out)
+        for idx, up in enumerate(self.decoder_layers):
+            out = up(out)
+
+        out = self.decoder_norm_out(out)
+        out = nn.SiLU()(out)
+        out = self.decoder_conv_out(out)
+        return out
+
