@@ -90,3 +90,8 @@ class VAE(nn.Module):
         out = self.decoder_conv_out(out)
         return out
 
+    def forward(self, x):
+        z, encoder_output = self.encode(x)
+        out = self.decode(z)
+        return out, encoder_output
+
